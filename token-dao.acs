@@ -1,0 +1,46 @@
+contract MyToken =
+  record state = {
+    token_symbol : string,
+    total_supply : int,
+    balances : map(address, int),
+    voted : map(address, bool)
+  }
+
+  stateful entrypoint init(token_symbol' : string) =
+    require(String.length(token_symbol') > 0, "Token symbol must not be empty")
+    { token_symbol = token_symbol', total_supply = 0, balances = {}, voted = {} }
+
+  entrypoint total_supply() : int =
+    state.total_supply
+
+  entrypoint balance_of(account : address) : int =
+    switch(Map.lookup(account, state.balances))
+      None => 0
+      Some(balance) => balance
+
+  stateful entrypoint mint(to : address, amount : int) =
+    require(Call.caller == state.owner, "Only owner can mint")
+    require(amount > 0, "Amount must be greater than zero")
+
+    let recipient_balance = balance_of(to)
+    let updated_recipient_balance = recipient_balance + amount
+
+    put(state{total_supply = state.total_supply + amount,
+              balances[to] = updated_recipient_balance})
+
+  stateful entrypoint vote(proposal_id : int) =
+    let voter = Call.caller
+    require(balance_of(voter) > 0, "Voter must have a positive balance")
+
+    require(!Map.contains(voter, state.voted), "Voter has already voted")
+
+    put(state{voted[voter] = true})
+
+  stateful entrypoint deduct_token() =
+    let voter = Call.caller
+    require(balance_of(voter) > 0, "Voter must have a positive balance")
+
+    if (!Map.contains(voter, state.voted))
+      let voter_balance = balance_of(voter)
+      let updated_voter_balance = voter_balance - 1
+      put(state{balances[voter] = updated_voter_balance})
